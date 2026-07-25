@@ -1,11 +1,12 @@
 <div align="center">
   <img src="./icon.png" alt="Chat2DB" width="100">
+
+<div align="center">
+ Powered by  <a href="https://ottermind.ai/?utm_source=github&utm_medium=referral&utm_campaign=chat2db">OtterMind</a>
+</div>
   <p><strong>面向开发者、DBA、分析师和数据团队的 AI 驱动数据库客户端与 SQL 工作空间。</strong></p>
 </div>
 
-<div align="center">
-  <a href="https://ottermind.ai">Powered by OtterMind.ai</a>
-</div>
 
 <div align="center">
   <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
