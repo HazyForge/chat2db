@@ -2,8 +2,8 @@ helmChartPath: charts/chat2db
 
 image:
   repository: ghcr.io/hazyforge/chat2db
-  tag: sha-b473847
-  digest: sha256:553b40cb7ad213bfbb5780c95ce69ce17e0e1881728a73f7eed6d96f7c3f1032
+  tag: sha-aa50a18
+  digest: sha256:f30072ae0728e639a8db4fa5fb8e6a94863b0906efdc9cc80a72cdd113382989
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
