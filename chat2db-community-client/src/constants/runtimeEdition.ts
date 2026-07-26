@@ -174,7 +174,7 @@ const communityConfig: RuntimeEditionConfig = {
   commercialAccount: false,
   remoteAppConfig: false,
   remoteSubscription: false,
-  remoteAiModelOptions: false,
+  remoteAiModelOptions: true,
   aiDataCollection: false,
   spmTracking: false,
   googleAds: false,

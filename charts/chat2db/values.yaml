@@ -15,6 +15,13 @@ service:
 cors:
   allowedOrigin: ""
 
+ai:
+  openai:
+    existingSecret: ""
+    secretKey: api-key
+    baseUrl: ""
+    models: []
+
 persistence:
   storageClassName: ""
   accessModes:
