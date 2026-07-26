@@ -145,10 +145,12 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
             }
             for (String model : models) {
                 AiModelOptionItem item = new AiModelOptionItem();
-                item.setValue(presetOptionValue(provider, model));
+                String presetOptionValue = presetOptionValue(provider, model);
+                item.setValue(presetOptionValue);
                 item.setLabel(model);
                 item.setProvider(provider.name());
                 item.setModel(model);
+                item.setModelConfigId(presetOptionValue);
                 item.setCustomOption(Boolean.FALSE);
                 item.setDefaultOption(Boolean.FALSE);
                 options.add(item);
