@@ -3,6 +3,7 @@ package ai.chat2db.community.domain.core.impl.db;
 import ai.chat2db.community.domain.api.model.PageResponse;
 import ai.chat2db.community.domain.api.model.datasource.ManagedDataSourceReconcileResult;
 import ai.chat2db.community.domain.api.model.datasource.ManagedDataSourceSpec;
+import ai.chat2db.community.domain.api.model.datasource.SSHInfo;
 import ai.chat2db.community.domain.api.model.request.datasource.DbDataSourcePageQueryRequest;
 import ai.chat2db.community.domain.api.model.request.datasource.DbDataSourcePreConnectRequest;
 import ai.chat2db.community.domain.api.model.storage.WorkspaceDataSource;
@@ -131,6 +132,7 @@ public class ManagedDataSourceReconcilerImpl implements IManagedDataSourceReconc
         request.setAuthenticationType(dataSource.getAuthenticationType());
         request.setHost(dataSource.getHost());
         request.setPort(dataSource.getPort());
+        request.setSsh(new SSHInfo());
         return request;
     }
 
