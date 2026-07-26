@@ -38,6 +38,10 @@ spec:
               value: {{ .Values.encryptionKey.mountPath | quote }}
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+            {{- with .Values.cors.allowedOrigin }}
+            - name: CHAT2DB_WEB_CORS_ALLOWED_ORIGIN
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 10825

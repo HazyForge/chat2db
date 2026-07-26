@@ -8,19 +8,15 @@ retained. The built container is private and is only for HazyForge internal use.
 ## Security boundary
 
 Chat2DB Community is a single-user, local-first application. It has no accounts,
-authorization, or tenant isolation. The Anvil Primaris deployment therefore has
-no public route and applies a default-deny ingress policy. Do not add an Ingress,
-Gateway API route, load balancer, or shared-user proxy without first changing
-the application security model and reviewing the upstream license.
+authorization, or tenant isolation. The Anvil Primaris deployment therefore
+keeps Chat2DB on a private ClusterIP and permits ingress only from the exact
+Chat2DB proxy workload in the shared `oauth2-proxy` namespace. The public route,
+ZITADEL session enforcement, immutable subject allowlist, and auth-header
+stripping are owned by that central platform deployment.
 
-Access it over the Kubernetes API from a trusted administrator workstation:
-
-```bash
-kubectl --context anvil-admin-anvil-primaris \
-  --namespace chat2db port-forward service/chat2db 10825:10825
-```
-
-Then open `http://127.0.0.1:10825`.
+The hosted origin is an exact, validated HTTPS value. Wildcard CORS origins,
+wildcard OIDC redirect URIs, direct publication of port 10825, and domain-wide
+identity allowlists are not supported by this deployment.
 
 ## Durable state and secrets
 
@@ -32,6 +28,8 @@ Then open `http://127.0.0.1:10825`.
   unreadable.
 - The private GHCR pull credential comes from the existing
   `anvil-primaris-ghcr-read-pat` Key Vault secret.
+- The dedicated ZITADEL client ID and secret, oauth2-proxy cookie key, and exact
+  allowed subject are projected from Azure Key Vault by External Secrets.
 
 ## Image
 
