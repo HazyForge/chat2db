@@ -33,6 +33,7 @@ ai:
 
 datasourceBootstrap:
   enabled: true
+  rolloutRevision: "1"
   managementKey: hazytrade-production-readonly
   alias: Hazy Trade Production (read only)
   type: POSTGRESQL

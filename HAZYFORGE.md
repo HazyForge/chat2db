@@ -49,7 +49,8 @@ The PostgreSQL account is the write-safety boundary. Give it only `CONNECT`,
 schema `USAGE`, and the required `SELECT` grants; Chat2DB does not impose a
 query-level read-only policy. Because this cluster has no Secret-reload
 controller, rotate the mounted credential together with a declarative pod
-rollout so startup reconciliation applies the new password.
+rollout by bumping `datasourceBootstrap.rolloutRevision`, so startup
+reconciliation applies the new password.
 
 ## Image
 

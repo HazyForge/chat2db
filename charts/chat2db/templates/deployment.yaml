@@ -15,6 +15,10 @@ spec:
     metadata:
       labels:
         {{- include "chat2db.selectorLabels" . | nindent 8 }}
+      {{- with .Values.datasourceBootstrap.rolloutRevision }}
+      annotations:
+        hazyforge.io/datasource-rollout-revision: {{ . | quote }}
+      {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       securityContext:

@@ -37,6 +37,9 @@ encryptionKey:
 # startup. Credentials and the trust root must come from an existing Secret.
 datasourceBootstrap:
   enabled: false
+  # Bump whenever the externally managed password or CA changes so Kubernetes
+  # replaces the pod and startup reconciliation reads the new secret files.
+  rolloutRevision: ""
   managementKey: ""
   alias: ""
   type: POSTGRESQL

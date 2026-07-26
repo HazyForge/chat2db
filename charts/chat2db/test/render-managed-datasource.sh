@@ -15,6 +15,7 @@ fi
 
 helm template chat2db "${chart_dir}" \
   --set datasourceBootstrap.enabled=true \
+  --set datasourceBootstrap.rolloutRevision=1 \
   --set datasourceBootstrap.managementKey=test-readonly \
   --set 'datasourceBootstrap.alias=Test Read Only' \
   --set datasourceBootstrap.host=postgres.example.internal \
@@ -24,6 +25,7 @@ helm template chat2db "${chart_dir}" \
   >"${render_dir}/enabled.yaml"
 
 grep -q 'name: CHAT2DB_BOOTSTRAP_DATASOURCE_ENABLED' "${render_dir}/enabled.yaml"
+grep -q 'hazyforge.io/datasource-rollout-revision: "1"' "${render_dir}/enabled.yaml"
 grep -q 'secretName: chat2db-database' "${render_dir}/enabled.yaml"
 grep -q 'defaultMode: 0440' "${render_dir}/enabled.yaml"
 grep -q 'mountPath: "/run/secrets/chat2db-datasource/password"' "${render_dir}/enabled.yaml"
