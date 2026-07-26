@@ -1,0 +1,27 @@
+FROM eclipse-temurin:17-jre@sha256:92999aea37688157a53a40bfcb187c30f317422e028045fd5fc5c548fde9e626
+
+ARG SOURCE_REVISION=unknown
+
+LABEL org.opencontainers.image.title="Chat2DB Community - HazyForge internal build" \
+      org.opencontainers.image.description="Internal HazyForge build of Chat2DB Community" \
+      org.opencontainers.image.source="https://github.com/HazyForge/chat2db" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.licenses="LicenseRef-Chat2DB" \
+      io.hazyforge.image.internal-only="true"
+
+RUN groupadd --gid 10001 chat2db \
+    && useradd --uid 10001 --gid 10001 --home-dir /home/chat2db --create-home chat2db \
+    && install --directory --owner 10001 --group 10001 --mode 0750 /app /data /licenses
+
+WORKDIR /app
+
+COPY --chown=10001:10001 chat2db-community-server/chat2db-community-start/target/chat2db-community.jar /app/chat2db-community.jar
+COPY --chown=10001:10001 chat2db-community-server/chat2db-community-start/target/lib/ /app/lib/
+COPY --chown=10001:10001 LICENSE /licenses/Chat2DB-LICENSE
+
+USER 10001:10001
+
+EXPOSE 10825
+VOLUME ["/data"]
+
+ENTRYPOINT ["java", "-Dloader.path=/app/lib", "-Duser.home=/data", "-Dchat2db.gui=false", "-Dchat2db.mode=WEB", "-Dchat2db.runtime.mode=community", "-Dchat2db.network.status=OFFLINE", "-Dserver.address=0.0.0.0", "-Dserver.port=10825", "-Dspring.profiles.active=release,hazyforge", "-jar", "/app/chat2db-community.jar"]
