@@ -26,8 +26,10 @@ class AiModelConfigServiceImplServerPresetTest {
     void completeConfigurationExposesAndResolvesOnlyDeclaredPreset() {
         AiModelConfigServiceImpl service = service(configuration("https://codex.hazycloud.io/v1"));
 
+        var options = service.listModelOptions();
         assertEquals(List.of("preset:OPENAI:gpt-5.4"),
-                service.listModelOptions().stream().map(option -> option.getValue()).toList());
+                options.stream().map(option -> option.getValue()).toList());
+        assertEquals("preset:OPENAI:gpt-5.4", options.get(0).getModelConfigId());
 
         var runtime = service.resolveRuntimeModel(preset("preset:OPENAI:gpt-5.4"));
         assertEquals("OPENAI", runtime.getProvider());
