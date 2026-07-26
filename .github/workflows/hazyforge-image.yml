@@ -105,6 +105,7 @@ jobs:
             --tmpfs /data:rw,noexec,nosuid,size=1g,uid=10001,gid=10001 \
             --publish 127.0.0.1:18025:10825 \
             --env CHAT2DB_COMMUNITY_ENCRYPTION_KEY_FILE=/run/secrets/chat2db-community-encryption.key \
+            --env CHAT2DB_WEB_CORS_ALLOWED_ORIGIN=https://chat2db.hazyforge.io \
             --volume "${key_file}:/run/secrets/chat2db-community-encryption.key:ro" \
             "${image}"
 
@@ -122,6 +123,12 @@ jobs:
           curl --fail --silent --show-error \
             http://127.0.0.1:18025/api/system \
             --output /tmp/system.json
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'Origin: https://chat2db.hazyforge.io' \
+            http://127.0.0.1:18025/api/system)" = "200"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'Origin: https://attacker.example' \
+            http://127.0.0.1:18025/api/system)" = "403"
           test "$(docker inspect --format '{{.Config.User}}' "${container}")" = "10001:10001"
 
       - name: Upload packaged application

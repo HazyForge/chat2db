@@ -12,6 +12,9 @@ automountServiceAccountToken: false
 service:
   port: 10825
 
+cors:
+  allowedOrigin: ""
+
 persistence:
   storageClassName: ""
   accessModes:
@@ -37,3 +40,6 @@ affinity: {}
 
 networkPolicy:
   enabled: true
+  # Keep empty for default-deny ingress. A protected hosted deployment should
+  # name its central oauth2-proxy namespace and exact proxy workload labels.
+  allowedIngress: null
