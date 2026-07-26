@@ -33,6 +33,29 @@ encryptionKey:
   secretKey: encryption.key
   mountPath: /run/secrets/chat2db-community-encryption.key
 
+# Optional, controller-owned PostgreSQL datasource reconciled at application
+# startup. Credentials and the trust root must come from an existing Secret.
+datasourceBootstrap:
+  enabled: false
+  # Bump whenever the externally managed password or CA changes so Kubernetes
+  # replaces the pod and startup reconciliation reads the new secret files.
+  rolloutRevision: ""
+  managementKey: ""
+  alias: ""
+  type: POSTGRESQL
+  host: ""
+  port: 5432
+  database: ""
+  user: ""
+  authenticationType: "1"
+  environmentId: 2
+  sslMode: verify-full
+  existingSecret: ""
+  passwordKey: password
+  caKey: ca.crt
+  passwordMountPath: /run/secrets/chat2db-datasource/password
+  caMountPath: /run/secrets/chat2db-datasource/ca.crt
+
 resources:
   requests:
     cpu: 500m

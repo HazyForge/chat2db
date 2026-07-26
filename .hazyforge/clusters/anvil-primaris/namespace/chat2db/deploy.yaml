@@ -31,6 +31,23 @@ ai:
     models:
       - gpt-5.4
 
+datasourceBootstrap:
+  enabled: true
+  rolloutRevision: "1"
+  managementKey: hazytrade-production-readonly
+  alias: Hazy Trade Production (read only)
+  type: POSTGRESQL
+  host: 5.161.253.191
+  port: 5432
+  database: hazytrade
+  user: chat2db_hazytrade_ro
+  authenticationType: "1"
+  environmentId: 2
+  sslMode: verify-full
+  existingSecret: chat2db-hazytrade-datasource
+  passwordKey: password
+  caKey: ca.crt
+
 resources:
   requests:
     cpu: 500m

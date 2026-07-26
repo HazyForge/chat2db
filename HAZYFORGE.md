@@ -31,6 +31,27 @@ identity allowlists are not supported by this deployment.
 - The dedicated ZITADEL client ID and secret, oauth2-proxy cookie key, and exact
   allowed subject are projected from Azure Key Vault by External Secrets.
 
+## Managed PostgreSQL datasource
+
+The chart can reconcile one PostgreSQL datasource at application startup with
+`datasourceBootstrap.enabled`. Non-secret connection identity is supplied in
+Helm values. The password and CA certificate are read from files in a dedicated
+existing Kubernetes Secret; they must never be placed directly in values.
+
+The datasource is owned by an explicit management key stored with its local
+record. Reconciliation never adopts an unmarked datasource, never treats an
+alias as ownership, and refuses an alias collision rather than changing a
+user-created connection. New and changed configuration is connection-tested
+before it is persisted, and the password uses the same AES-GCM encryption key
+as manually created Community datasources.
+
+The PostgreSQL account is the write-safety boundary. Give it only `CONNECT`,
+schema `USAGE`, and the required `SELECT` grants; Chat2DB does not impose a
+query-level read-only policy. Because this cluster has no Secret-reload
+controller, rotate the mounted credential together with a declarative pod
+rollout by bumping `datasourceBootstrap.rolloutRevision`, so startup
+reconciliation applies the new password.
+
 ## Image
 
 `.github/workflows/hazyforge-image.yml` builds the frontend and backend from

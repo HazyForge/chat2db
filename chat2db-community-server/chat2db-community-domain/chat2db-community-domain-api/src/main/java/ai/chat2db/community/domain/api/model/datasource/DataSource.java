@@ -92,4 +92,10 @@ public class DataSource {
 
 
     private Long spaceId;
+
+    /** Identifies the controller that owns this datasource, when any. */
+    private String managedBy;
+
+    /** Stable controller-scoped identity used for idempotent reconciliation. */
+    private String managedKey;
 }
