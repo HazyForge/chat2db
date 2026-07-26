@@ -71,4 +71,8 @@ public class WorkspaceDataSource {
     private String storageType;
 
     private Long spaceId;
+
+    private String managedBy;
+
+    private String managedKey;
 }

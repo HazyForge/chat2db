@@ -38,6 +38,34 @@ spec:
               value: {{ .Values.encryptionKey.mountPath | quote }}
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+            {{- if .Values.datasourceBootstrap.enabled }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_ENABLED
+              value: "true"
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_MANAGEMENT_KEY
+              value: {{ required "datasourceBootstrap.managementKey is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.managementKey | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_ALIAS
+              value: {{ required "datasourceBootstrap.alias is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.alias | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_TYPE
+              value: {{ required "datasourceBootstrap.type is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.type | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_HOST
+              value: {{ required "datasourceBootstrap.host is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.host | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_PORT
+              value: {{ .Values.datasourceBootstrap.port | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_DATABASE
+              value: {{ required "datasourceBootstrap.database is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.database | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_USER
+              value: {{ required "datasourceBootstrap.user is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.user | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_AUTHENTICATION_TYPE
+              value: {{ .Values.datasourceBootstrap.authenticationType | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_ENVIRONMENT_ID
+              value: {{ .Values.datasourceBootstrap.environmentId | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_SSL_MODE
+              value: {{ .Values.datasourceBootstrap.sslMode | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_PASSWORD_FILE
+              value: {{ .Values.datasourceBootstrap.passwordMountPath | quote }}
+            - name: CHAT2DB_BOOTSTRAP_DATASOURCE_CA_FILE
+              value: {{ .Values.datasourceBootstrap.caMountPath | quote }}
+            {{- end }}
             {{- with .Values.cors.allowedOrigin }}
             - name: CHAT2DB_WEB_CORS_ALLOWED_ORIGIN
               value: {{ . | quote }}
@@ -95,6 +123,16 @@ spec:
               mountPath: {{ .Values.encryptionKey.mountPath | quote }}
               subPath: {{ .Values.encryptionKey.secretKey | quote }}
               readOnly: true
+            {{- if .Values.datasourceBootstrap.enabled }}
+            - name: datasource-bootstrap
+              mountPath: {{ .Values.datasourceBootstrap.passwordMountPath | quote }}
+              subPath: password
+              readOnly: true
+            - name: datasource-bootstrap
+              mountPath: {{ .Values.datasourceBootstrap.caMountPath | quote }}
+              subPath: ca.crt
+              readOnly: true
+            {{- end }}
             - name: tmp
               mountPath: /tmp
           resources:
@@ -107,6 +145,17 @@ spec:
           secret:
             secretName: {{ .Values.encryptionKey.existingSecret }}
             defaultMode: 0440
+        {{- if .Values.datasourceBootstrap.enabled }}
+        - name: datasource-bootstrap
+          secret:
+            secretName: {{ required "datasourceBootstrap.existingSecret is required when datasource bootstrap is enabled" .Values.datasourceBootstrap.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.datasourceBootstrap.passwordKey | quote }}
+                path: password
+              - key: {{ .Values.datasourceBootstrap.caKey | quote }}
+                path: ca.crt
+        {{- end }}
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi
