@@ -5,6 +5,7 @@ import ai.chat2db.community.domain.api.config.DriverConfig;
 import ai.chat2db.community.domain.api.model.datasource.ManagedDataSourceReconcileResult;
 import ai.chat2db.community.domain.api.model.datasource.ManagedDataSourceSpec;
 import ai.chat2db.community.domain.api.model.storage.WorkspaceDataSource;
+import ai.chat2db.community.domain.api.model.request.datasource.DbDataSourcePreConnectRequest;
 import ai.chat2db.community.domain.api.service.db.IDbWorkspaceDataSourceService;
 import ai.chat2db.community.domain.api.service.storage.IWorkspaceStorageFacade;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ class ManagedDataSourceReconcilerImplTest {
     private final List<WorkspaceDataSource> stored = new ArrayList<>();
     private final List<String> calls = new ArrayList<>();
     private WorkspaceDataSource updateRequest;
+    private DbDataSourcePreConnectRequest preConnectRequest;
     private boolean failPreConnect;
     private ManagedDataSourceReconcilerImpl reconciler;
 
@@ -31,6 +33,7 @@ class ManagedDataSourceReconcilerImplTest {
         stored.clear();
         calls.clear();
         updateRequest = null;
+        preConnectRequest = null;
         failPreConnect = false;
         reconciler = new ManagedDataSourceReconcilerImpl(storageFacade(), workspaceService());
     }
@@ -42,6 +45,7 @@ class ManagedDataSourceReconcilerImplTest {
         assertEquals(ManagedDataSourceReconcileResult.Action.CREATED, result.getAction());
         assertEquals(101L, result.getDataSourceId());
         assertEquals(List.of("preConnect", "create"), calls);
+        assertEquals(false, preConnectRequest.getSsh().isUse());
         assertEquals(ManagedDataSourceReconcilerImpl.MANAGED_BY, stored.get(0).getManagedBy());
         assertEquals("prod-readonly", stored.get(0).getManagedKey());
     }
@@ -151,6 +155,7 @@ class ManagedDataSourceReconcilerImplTest {
                         yield stored.stream().filter(item -> item.getId().equals(args[0])).findFirst().orElse(null);
                     }
                     case "preConnect" -> {
+                        preConnectRequest = (DbDataSourcePreConnectRequest) args[0];
                         calls.add("preConnect");
                         if (failPreConnect) {
                             throw new IllegalStateException("connection failed");
