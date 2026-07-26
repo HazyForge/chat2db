@@ -2,8 +2,8 @@ helmChartPath: charts/chat2db
 
 image:
   repository: ghcr.io/hazyforge/chat2db
-  tag: sha-3b7cd49
-  digest: sha256:615b172094e476cf9e1af48bc8d41ef75d7a1ee241d62d4728d1080f4c833d28
+  tag: sha-ffc6a41
+  digest: sha256:1f7d6beeddbb3a25cb463ce507f1c13f2fb6aeb821239032e0efa66678b13a57
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
@@ -20,6 +20,9 @@ encryptionKey:
   secretKey: encryption.key
   mountPath: /run/secrets/chat2db-community-encryption.key
 
+cors:
+  allowedOrigin: https://chat2db.hazyforge.io
+
 resources:
   requests:
     cpu: 500m
@@ -33,3 +36,8 @@ nodeSelector:
 
 networkPolicy:
   enabled: true
+  allowedIngress:
+    namespace: oauth2-proxy
+    podLabels:
+      app.kubernetes.io/name: oauth2-proxy
+      app.kubernetes.io/instance: chat2db
