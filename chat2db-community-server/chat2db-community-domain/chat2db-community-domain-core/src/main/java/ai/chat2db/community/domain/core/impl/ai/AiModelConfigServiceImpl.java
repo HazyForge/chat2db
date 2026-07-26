@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,6 +56,7 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
 
     private static final String DEFAULT_GEMINI_LOCATION = "us-central1";
     private static final String DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+    private static final String OPENAI_MODELS_ENV = "CHAT2DB_OPENAI_MODELS";
     private static final int TEST_ERROR_BODY_MAX_LENGTH = 2000;
     private static final String CONFIG_VALUE_PREFIX = "config:";
     private static final String PRESET_VALUE_PREFIX = "preset:";
@@ -64,6 +66,8 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
     private final AiModelConfigConverter aiModelConfigConverter;
     private final IIdentityService identityService;
     private final AesGcmUtil aesGcmUtil;
+    private final Function<String, String> environment;
+    private final boolean serverManagedOpenAi;
 
     private final Path storagePath;
 
@@ -77,16 +81,24 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
             IIdentityService identityService) {
         this(objectMapper, aiModelConfigConverter, identityService,
                 Paths.get(ConfigUtils.getBasePath(), "ai-model-configs.json"),
-                ConfigUtils.isCommunity() ? AesGcmUtil.configured() : null);
+                ConfigUtils.isCommunity() ? AesGcmUtil.configured() : null, System::getenv);
     }
 
     AiModelConfigServiceImpl(ObjectMapper objectMapper, AiModelConfigConverter aiModelConfigConverter,
             IIdentityService identityService, Path storagePath, AesGcmUtil aesGcmUtil) {
+        this(objectMapper, aiModelConfigConverter, identityService, storagePath, aesGcmUtil, System::getenv);
+    }
+
+    AiModelConfigServiceImpl(ObjectMapper objectMapper, AiModelConfigConverter aiModelConfigConverter,
+            IIdentityService identityService, Path storagePath, AesGcmUtil aesGcmUtil,
+            Function<String, String> environment) {
         this.objectMapper = objectMapper;
         this.aiModelConfigConverter = aiModelConfigConverter;
         this.identityService = identityService;
         this.storagePath = storagePath;
         this.aesGcmUtil = aesGcmUtil;
+        this.environment = environment;
+        this.serverManagedOpenAi = validateServerManagedOpenAiConfiguration();
     }
 
     @PostConstruct
@@ -128,6 +140,9 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
                 });
 
         getPresetModelMap().forEach((provider, models) -> {
+            if (!hasServerManagedProviderCredential(provider.name())) {
+                return;
+            }
             for (String model : models) {
                 AiModelOptionItem item = new AiModelOptionItem();
                 item.setValue(presetOptionValue(provider, model));
@@ -226,7 +241,21 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
         if (StringUtils.isNotBlank(request.getModelConfigId())) {
             String modelConfigId = request.getModelConfigId().trim();
             if (modelConfigId.startsWith(PRESET_VALUE_PREFIX)) {
-                throw new BusinessException(ERROR_MODEL_CONFIG_REQUIRED);
+                String preset = modelConfigId.substring(PRESET_VALUE_PREFIX.length());
+                int separator = preset.indexOf(':');
+                if (separator <= 0 || separator == preset.length() - 1) {
+                    throw new BusinessException(ERROR_MODEL_CONFIG_REQUIRED);
+                }
+                String provider = preset.substring(0, separator);
+                String model = preset.substring(separator + 1);
+                if (!isPresetModel(provider, model) || !hasServerManagedProviderCredential(provider)) {
+                    throw new BusinessException(ERROR_MODEL_CONFIG_REQUIRED);
+                }
+                baseConfig = new AiModelConfig();
+                baseConfig.setProvider(provider);
+                baseConfig.setModel(model);
+                systemPreset = true;
+                rejectServerPresetOverrides(request);
             } else {
                 String resolvedId = modelConfigId.startsWith(CONFIG_VALUE_PREFIX)
                         ? modelConfigId.substring(CONFIG_VALUE_PREFIX.length())
@@ -246,14 +275,6 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
             baseConfig.setLocation(request.getLocation());
             baseConfig.setTemperature(request.getTemperature());
             baseConfig.setMaxTokens(request.getMaxTokens());
-            systemPreset = isPresetModel(request.getProvider(), request.getModel())
-                    && StringUtils.isBlank(request.getApiKey())
-                    && StringUtils.isBlank(request.getBaseUrl())
-                    && StringUtils.isBlank(request.getProjectId())
-                    && StringUtils.isBlank(request.getLocation());
-            if (systemPreset) {
-                throw new BusinessException(ERROR_MODEL_CONFIG_REQUIRED);
-            }
         } else {
             baseConfig = userConfigMap.getOrDefault(userId, new ArrayList<>()).stream()
                     .filter(c -> Boolean.TRUE.equals(c.getDefaultConfig()))
@@ -279,6 +300,14 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
         normalizeRuntimeBaseUrl(runtimeModel);
         validateRuntimeModel(runtimeModel);
         return runtimeModel;
+    }
+
+    private void rejectServerPresetOverrides(AiChatRuntimeResolveRequest request) {
+        if (StringUtils.isNotBlank(request.getProvider()) || StringUtils.isNotBlank(request.getModel())
+                || StringUtils.isNotBlank(request.getApiKey()) || StringUtils.isNotBlank(request.getBaseUrl())
+                || StringUtils.isNotBlank(request.getProjectId()) || StringUtils.isNotBlank(request.getLocation())) {
+            throw new BusinessException(ERROR_MODEL_CONFIG_REQUIRED);
+        }
     }
 
     /**
@@ -322,18 +351,24 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
         }
 
         if (provider == AiProviderEnum.OPENAI) {
-            runtimeModel.setApiKey(defaultValue(trimToNull(runtimeModel.getApiKey()), trimToNull(System.getenv("OPENAI_API_KEY"))));
-            runtimeModel.setBaseUrl(defaultValue(trimToNull(runtimeModel.getBaseUrl()), trimToNull(System.getenv("OPENAI_BASE_URL"))));
+            if (runtimeModel.isSystemPreset()) {
+                runtimeModel.setApiKey(defaultValue(trimToNull(runtimeModel.getApiKey()), trimToNull(environment.apply("OPENAI_API_KEY"))));
+                runtimeModel.setBaseUrl(defaultValue(trimToNull(runtimeModel.getBaseUrl()), trimToNull(environment.apply("OPENAI_BASE_URL"))));
+            }
             return;
         }
         if (provider == AiProviderEnum.CLAUDE) {
-            runtimeModel.setApiKey(defaultValue(trimToNull(runtimeModel.getApiKey()), trimToNull(System.getenv("ANTHROPIC_API_KEY"))));
-            runtimeModel.setBaseUrl(defaultValue(trimToNull(runtimeModel.getBaseUrl()), trimToNull(System.getenv("ANTHROPIC_BASE_URL"))));
+            if (runtimeModel.isSystemPreset()) {
+                runtimeModel.setApiKey(defaultValue(trimToNull(runtimeModel.getApiKey()), trimToNull(environment.apply("ANTHROPIC_API_KEY"))));
+                runtimeModel.setBaseUrl(defaultValue(trimToNull(runtimeModel.getBaseUrl()), trimToNull(environment.apply("ANTHROPIC_BASE_URL"))));
+            }
             return;
         }
         if (provider == AiProviderEnum.GEMINI) {
-            runtimeModel.setProjectId(defaultValue(trimToNull(runtimeModel.getProjectId()), trimToNull(System.getenv("GOOGLE_CLOUD_PROJECT"))));
-            runtimeModel.setLocation(defaultValue(trimToNull(runtimeModel.getLocation()), trimToNull(System.getenv("GOOGLE_CLOUD_LOCATION"))));
+            if (runtimeModel.isSystemPreset()) {
+                runtimeModel.setProjectId(defaultValue(trimToNull(runtimeModel.getProjectId()), trimToNull(environment.apply("GOOGLE_CLOUD_PROJECT"))));
+                runtimeModel.setLocation(defaultValue(trimToNull(runtimeModel.getLocation()), trimToNull(environment.apply("GOOGLE_CLOUD_LOCATION"))));
+            }
             runtimeModel.setLocation(defaultValue(runtimeModel.getLocation(), DEFAULT_GEMINI_LOCATION));
         }
     }
@@ -350,6 +385,9 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
             throw new IllegalArgumentException("Unsupported provider: " + runtimeModel.getProvider());
         }
         if (provider == AiProviderEnum.OPENAI || provider == AiProviderEnum.CLAUDE) {
+            if (StringUtils.isBlank(runtimeModel.getApiKey())) {
+                throw new IllegalArgumentException("API key is required for provider: " + provider.name());
+            }
             return;
         }
         if (provider == AiProviderEnum.GEMINI) {
@@ -452,10 +490,65 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
 
     private Map<AiProviderEnum, List<String>> localPresetModelMap() {
         Map<AiProviderEnum, List<String>> presets = new EnumMap<>(AiProviderEnum.class);
-        presets.put(AiProviderEnum.OPENAI, List.of("gpt-5.2"));
+        presets.put(AiProviderEnum.OPENAI,
+                configuredModels(environment.apply(OPENAI_MODELS_ENV), List.of("gpt-5.2")));
         presets.put(AiProviderEnum.CLAUDE, List.of("claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001"));
         presets.put(AiProviderEnum.GEMINI, List.of("gemini-2.5-pro", "gemini-2.5-flash"));
         return presets;
+    }
+
+    static List<String> configuredModels(String configuredValue, List<String> fallback) {
+        if (StringUtils.isBlank(configuredValue)) {
+            return fallback;
+        }
+        List<String> models = java.util.Arrays.stream(configuredValue.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        return models.isEmpty() ? fallback : models;
+    }
+
+    private boolean hasServerManagedProviderCredential(String providerValue) {
+        AiProviderEnum provider = AiProviderEnum.from(providerValue);
+        if (provider == AiProviderEnum.OPENAI) {
+            return serverManagedOpenAi;
+        }
+        if (provider == AiProviderEnum.CLAUDE) {
+            return StringUtils.isNotBlank(environment.apply("ANTHROPIC_API_KEY"));
+        }
+        if (provider == AiProviderEnum.GEMINI) {
+            return StringUtils.isNotBlank(environment.apply("GOOGLE_CLOUD_PROJECT"));
+        }
+        return false;
+    }
+
+    private boolean validateServerManagedOpenAiConfiguration() {
+        String models = trimToNull(environment.apply(OPENAI_MODELS_ENV));
+        String apiKey = trimToNull(environment.apply("OPENAI_API_KEY"));
+        String baseUrl = trimToNull(environment.apply("OPENAI_BASE_URL"));
+        boolean anyConfigured = models != null || apiKey != null || baseUrl != null;
+        if (!anyConfigured) {
+            return false;
+        }
+        if (models == null || apiKey == null || baseUrl == null) {
+            throw new IllegalStateException(OPENAI_MODELS_ENV
+                    + ", OPENAI_API_KEY, and OPENAI_BASE_URL must be configured together");
+        }
+        URI uri;
+        try {
+            uri = URI.create(baseUrl);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("OPENAI_BASE_URL must be an absolute HTTPS URL", e);
+        }
+        if (!"https".equals(uri.getScheme()) || StringUtils.isBlank(uri.getHost())
+                || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null) {
+            throw new IllegalStateException("OPENAI_BASE_URL must be an absolute HTTPS URL without credentials, query, or fragment");
+        }
+        if (configuredModels(models, List.of()).isEmpty()) {
+            throw new IllegalStateException(OPENAI_MODELS_ENV + " must contain at least one model");
+        }
+        return true;
     }
 
     private ModelConfigTestResponse testOpenAiCompatibleConfig(AiModelConfigSaveRequest request) {

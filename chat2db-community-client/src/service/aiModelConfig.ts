@@ -1,6 +1,9 @@
 import { runtimeEditionConfig } from '@/constants/runtimeEdition';
 import aiStreamService, { IModelOptionItem } from './aiStream';
 import createRequest from './base';
+import { filterRemoteModelOptions, serverPresetRequestPayload } from './serverModelOptionPolicy';
+
+export { filterRemoteModelOptions } from './serverModelOptionPolicy';
 
 export type AIProvider = 'OPENAI' | 'CLAUDE' | 'GEMINI';
 
@@ -199,7 +202,7 @@ export const testAIModelConfig = async (payload: IAIModelConfigSaveRequest) => {
 
 export const listAvailableModelOptions = async (): Promise<IModelOptionItem[]> => {
   const presetOptions = runtimeEditionConfig.remoteAiModelOptions
-    ? (await aiStreamService.getModelOptions(undefined as void)) || []
+    ? filterRemoteModelOptions((await aiStreamService.getModelOptions(undefined as void)) || [])
     : [];
 
   if (!runtimeEditionConfig.localPersistence) {
@@ -237,17 +240,7 @@ export const resolveModelRequestPayload = async (option: IModelOptionItem) => {
   }
 
   if (option.modelConfigId) {
-    return {
-      modelConfigId: option.modelConfigId,
-      provider: undefined,
-      model: option.model,
-      apiKey: undefined,
-      baseUrl: undefined,
-      projectId: undefined,
-      location: undefined,
-      temperature: undefined,
-      maxTokens: undefined,
-    };
+    return serverPresetRequestPayload(option);
   }
 
   return {

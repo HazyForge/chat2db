@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -47,7 +48,11 @@ class AiModelConfigServiceImplBaseUrlTest {
     }
 
     private AiModelConfigServiceImpl service() {
+        return service(Map.of());
+    }
+
+    private AiModelConfigServiceImpl service(Map<String, String> environment) {
         return new AiModelConfigServiceImpl(new ObjectMapper().findAndRegisterModules(), new AiModelConfigConverter(),
-                () -> USER_ID, tempDirectory.resolve("ai-model-configs.json"), null);
+                () -> USER_ID, tempDirectory.resolve("ai-model-configs.json"), null, environment::get);
     }
 }

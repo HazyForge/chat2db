@@ -13,6 +13,7 @@
     </appender>
 
     <logger name="ai.chat2db.community.web.api.config.log.EasyLogSink" level="OFF"/>
+    <logger name="ai.chat2db.community.web.api.adapter.ai.AiChatStreamAdapter" level="OFF"/>
     <logger name="ai.chat2db.community.web.api.adapter.ai.WebClientParameterFilter" level="OFF"/>
     <logger name="ai.chat2db.community.web.api.adapter.ai.ZoerClientHttpRequestInterceptor" level="OFF"/>
 

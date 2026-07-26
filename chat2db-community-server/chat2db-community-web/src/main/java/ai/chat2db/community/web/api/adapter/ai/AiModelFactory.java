@@ -53,9 +53,6 @@ public class AiModelFactory {
 
     public AiChatClient create(AiRuntimeModel runtimeModel, RequestMode requestMode) {
         AiProviderEnum provider = AiProviderEnum.from(runtimeModel.getProvider());
-        if (runtimeModel.isSystemPreset()) {
-            throw new IllegalArgumentException("Community edition requires a user configured AI model.");
-        }
         RetryTemplate retryTemplate = createRetryTemplate(requestMode);
         if (provider == AiProviderEnum.OPENAI) {
             return openAiClient(runtimeModel, retryTemplate);
@@ -215,10 +212,7 @@ public class AiModelFactory {
         if (StringUtils.isBlank(value)) {
             return value;
         }
-        if (value.length() <= 8) {
-            return "****";
-        }
-        return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+        return "[redacted]";
     }
 
     @Getter

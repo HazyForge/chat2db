@@ -42,6 +42,21 @@ spec:
             - name: CHAT2DB_WEB_CORS_ALLOWED_ORIGIN
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.ai.openai.existingSecret }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: {{ $.Values.ai.openai.secretKey | quote }}
+            {{- end }}
+            {{- with .Values.ai.openai.baseUrl }}
+            - name: OPENAI_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.ai.openai.models }}
+            - name: CHAT2DB_OPENAI_MODELS
+              value: {{ join "," . | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 10825

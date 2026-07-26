@@ -23,6 +23,14 @@ encryptionKey:
 cors:
   allowedOrigin: https://chat2db.hazyforge.io
 
+ai:
+  openai:
+    existingSecret: chat2db-openai-proxy
+    secretKey: api-key
+    baseUrl: https://codex.hazycloud.io
+    models:
+      - gpt-5.4
+
 resources:
   requests:
     cpu: 500m
