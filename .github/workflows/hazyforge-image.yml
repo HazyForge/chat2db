@@ -1,0 +1,263 @@
+name: HazyForge internal image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/hazyforge-image.yml
+      - docker/Dockerfile.hazyforge
+      - LICENSE
+      - chat2db-community-client/**
+      - chat2db-community-server/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: hazyforge-chat2db-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/hazyforge/chat2db
+
+jobs:
+  package:
+    name: Package application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.2
+          cache: yarn
+          cache-dependency-path: chat2db-community-client/yarn.lock
+
+      - name: Build Community frontend
+        working-directory: chat2db-community-client
+        run: |
+          yarn install --frozen-lockfile
+          UMI_PublicPath=/static/front/ yarn run build:web:community --app_version=5.3.0
+
+      - name: Stage frontend for Spring Boot
+        shell: bash
+        run: |
+          set -euo pipefail
+          resources=chat2db-community-server/chat2db-community-start/src/main/resources
+          rm -rf "${resources}/static/front"
+          mkdir -p "${resources}/static/front" "${resources}/thymeleaf"
+          cp -R chat2db-community-client/dist/. "${resources}/static/front/"
+          cp chat2db-community-client/dist/index.html "${resources}/thymeleaf/index.html"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Package Community backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn -B clean package \
+            -Dmaven.test.skip=true \
+            -Dchat2db.finalName=chat2db-community \
+            -f chat2db-community-server/pom.xml \
+            -pl chat2db-community-start \
+            -am
+          test -f chat2db-community-server/chat2db-community-start/target/chat2db-community.jar
+          test -d chat2db-community-server/chat2db-community-start/target/lib
+
+      - name: Smoke test hardened image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=ghcr.io/hazyforge/chat2db:smoke
+          container=chat2db-hazyforge-smoke
+          key_file="${RUNNER_TEMP}/chat2db-community-encryption.key"
+
+          umask 077
+          openssl rand -base64 32 > "${key_file}"
+          chmod 0444 "${key_file}"
+          cleanup() {
+            docker rm --force "${container}" >/dev/null 2>&1 || true
+            docker image rm "${image}" >/dev/null 2>&1 || true
+            rm -f "${key_file}"
+          }
+          trap cleanup EXIT
+
+          docker build \
+            --build-arg SOURCE_REVISION="${GITHUB_SHA}" \
+            --tag "${image}" \
+            --file docker/Dockerfile.hazyforge \
+            .
+          docker run \
+            --detach \
+            --name "${container}" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=1g \
+            --tmpfs /data:rw,noexec,nosuid,size=1g,uid=10001,gid=10001 \
+            --publish 127.0.0.1:18025:10825 \
+            --env CHAT2DB_COMMUNITY_ENCRYPTION_KEY_FILE=/run/secrets/chat2db-community-encryption.key \
+            --volume "${key_file}:/run/secrets/chat2db-community-encryption.key:ro" \
+            "${image}"
+
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18025/ --output /tmp/index.html; then
+              break
+            fi
+            if [ "${attempt}" -eq 60 ]; then
+              docker logs "${container}"
+              exit 1
+            fi
+            sleep 2
+          done
+          grep --quiet 'src="/static/front/umi.js"' /tmp/index.html
+          curl --fail --silent --show-error \
+            http://127.0.0.1:18025/api/system \
+            --output /tmp/system.json
+          test "$(docker inspect --format '{{.Config.User}}' "${container}")" = "10001:10001"
+
+      - name: Upload packaged application
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chat2db-package
+          path: |
+            chat2db-community-server/chat2db-community-start/target/chat2db-community.jar
+            chat2db-community-server/chat2db-community-start/target/lib
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+            digest_artifact: digests-linux-amd64
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            digest_artifact: digests-linux-arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download packaged application
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chat2db-package
+          path: chat2db-community-server/chat2db-community-start/target
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: docker/Dockerfile.hazyforge
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=chat2db-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=chat2db-${{ matrix.arch }}
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Export digest
+        shell: bash
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test -n "${DIGEST}"
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.digest_artifact }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish multi-architecture image
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Create manifest list
+        id: manifest
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          short_sha="${SOURCE_SHA:0:7}"
+          source_refs=()
+          for digest_file in /tmp/digests/*; do
+            source_refs+=("${IMAGE_NAME}@sha256:${digest_file##*/}")
+          done
+          test "${#source_refs[@]}" -eq 2
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:main" \
+            --tag "${IMAGE_NAME}:sha-${short_sha}" \
+            "${source_refs[@]}"
+          digest="$(docker buildx imagetools inspect "${IMAGE_NAME}:sha-${short_sha}" --format '{{json .Manifest}}' | jq -r .digest)"
+          test -n "${digest}"
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+          echo "ref=${IMAGE_NAME}@${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify published platforms
+        shell: bash
+        env:
+          IMAGE_REF: ${{ steps.manifest.outputs.ref }}
+        run: |
+          set -euo pipefail
+          platforms="$(docker buildx imagetools inspect "${IMAGE_REF}" --format '{{json .Manifest}}' | jq -r '[.manifests[].platform | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(" ")')"
+          test "${platforms}" = "linux/amd64 linux/arm64"
+
+      - name: Write summary
+        env:
+          IMAGE_REF: ${{ steps.manifest.outputs.ref }}
+        run: echo "Published immutable image \`${IMAGE_REF}\`" >> "${GITHUB_STEP_SUMMARY}"

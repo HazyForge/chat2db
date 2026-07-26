@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hazyforge/chat2db
+  tag: main
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+automountServiceAccountToken: false
+
+service:
+  port: 10825
+
+persistence:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+encryptionKey:
+  existingSecret: chat2db-encryption-key
+  secretKey: encryption.key
+  mountPath: /run/secrets/chat2db-community-encryption.key
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+networkPolicy:
+  enabled: true

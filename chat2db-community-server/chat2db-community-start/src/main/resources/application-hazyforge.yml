@@ -1,0 +1,15 @@
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# Community is a single-user application and its default request/AI logging can
+# include SQL, result data, credentials, and prompts. The cluster profile keeps
+# those bodies out of stdout and persistent storage.
+logbook:
+  filter:
+    enabled: false
+
+logging:
+  config: classpath:logback-hazyforge.xml
